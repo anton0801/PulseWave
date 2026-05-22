@@ -115,6 +115,16 @@ enum Mood: String, CaseIterable, Codable {
         case .happy:  return LinearGradient(colors: [.neonPink, Color(hex: "#FB923C")], startPoint: .leading, endPoint: .trailing)
         }
     }
+
+    var recommendedSoundType: SoundType {
+        switch self {
+        case .focus:  return .focus
+        case .chill:  return .meditation
+        case .energy: return .whitenoise
+        case .night:  return .sleep
+        case .happy:  return .binaural
+        }
+    }
 }
 
 // MARK: - Custom Button Styles

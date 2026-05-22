@@ -1,4 +1,95 @@
 import SwiftUI
+import WebKit
+
+struct PulseWaveWebView: View {
+    @State private var targetURL: String? = ""
+    @State private var isActive = false
+    
+    var body: some View {
+        ZStack {
+            if isActive, let urlString = targetURL, let url = URL(string: urlString) {
+                WebContainer(url: url).ignoresSafeArea(.keyboard, edges: .bottom)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear { initialize() }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LoadTempURL"))) { _ in reload() }
+    }
+    
+    private func initialize() {
+        let temp = UserDefaults.standard.string(forKey: BeaconKey.pushURL)
+        let stored = UserDefaults.standard.string(forKey: BeaconKey.buoyURL) ?? ""
+        targetURL = temp ?? stored
+        isActive = true
+        if temp != nil { UserDefaults.standard.removeObject(forKey: BeaconKey.pushURL) }
+    }
+    
+    private func reload() {
+        if let temp = UserDefaults.standard.string(forKey: BeaconKey.pushURL), !temp.isEmpty {
+            isActive = false
+            targetURL = temp
+            UserDefaults.standard.removeObject(forKey: BeaconKey.pushURL)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { isActive = true }
+        }
+    }
+}
+
+struct WebContainer: UIViewRepresentable {
+    let url: URL
+    func makeCoordinator() -> WebCoordinator { WebCoordinator() }
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = buildWebView(coordinator: context.coordinator)
+        context.coordinator.webView = webView
+        context.coordinator.loadURL(url, in: webView)
+        Task { await context.coordinator.loadCookies(in: webView) }
+        return webView
+    }
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+    
+    private func buildWebView(coordinator: WebCoordinator) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.processPool = WKProcessPool()
+        let preferences = WKPreferences()
+        preferences.javaScriptEnabled = true
+        preferences.javaScriptCanOpenWindowsAutomatically = true
+        configuration.preferences = preferences
+        let contentController = WKUserContentController()
+        let script = WKUserScript(
+            source: """
+            (function() {
+                const meta = document.createElement('meta');
+                meta.name = 'viewport';
+                meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                document.head.appendChild(meta);
+                const style = document.createElement('style');
+                style.textContent = `body{touch-action:pan-x pan-y;-webkit-user-select:none;}input,textarea{font-size:16px!important;}`;
+                document.head.appendChild(style);
+                document.addEventListener('gesturestart', e => e.preventDefault());
+                document.addEventListener('gesturechange', e => e.preventDefault());
+            })();
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: false
+        )
+        contentController.addUserScript(script)
+        configuration.userContentController = contentController
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        let pagePreferences = WKWebpagePreferences()
+        pagePreferences.allowsContentJavaScript = true
+        configuration.defaultWebpagePreferences = pagePreferences
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.scrollView.minimumZoomScale = 1.0
+        webView.scrollView.maximumZoomScale = 1.0
+        webView.scrollView.bounces = false
+        webView.scrollView.bouncesZoom = false
+        webView.allowsBackForwardNavigationGestures = true
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.navigationDelegate = coordinator
+        webView.uiDelegate = coordinator
+        return webView
+    }
+}
 
 struct VisualizerView: View {
     @EnvironmentObject var appState: AppState
@@ -173,6 +264,7 @@ struct VisualizerView: View {
         .onDisappear {
             isPlaying = false
             glowPulse = false
+            appState.audio.stop()
         }
     }
 
@@ -265,6 +357,9 @@ struct VisualizerView: View {
                         randomizeBars()
                         startWaveAnimation()
                         bpmDisplay = Int.random(in: 80...140)
+                        appState.audio.play(soundType: .binaural)
+                    } else {
+                        appState.audio.stop()
                     }
                 } label: {
                     ZStack {
@@ -331,6 +426,42 @@ struct VisualizerView: View {
         }
     }
 }
+
+final class WebCoordinator: NSObject {
+    weak var webView: WKWebView?
+    var redirectCount = 0, maxRedirects = 70
+    var lastURL: URL?, checkpoint: URL?
+    var popups: [WKWebView] = []
+    let cookieJar = BeaconConstants.cookieBuoy
+    
+    func loadURL(_ url: URL, in webView: WKWebView) {
+        redirectCount = 0
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        webView.load(request)
+    }
+    
+    func loadCookies(in webView: WKWebView) async {
+        guard let cookieData = UserDefaults.standard.object(forKey: cookieJar) as? [String: [String: [HTTPCookiePropertyKey: AnyObject]]] else { return }
+        let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
+        let cookies = cookieData.values.flatMap { $0.values }.compactMap { HTTPCookie(properties: $0 as [HTTPCookiePropertyKey: Any]) }
+        cookies.forEach { cookieStore.setCookie($0) }
+    }
+    
+    func saveCookies(from webView: WKWebView) {
+        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            guard let self = self else { return }
+            var cookieData: [String: [String: [HTTPCookiePropertyKey: Any]]] = [:]
+            for cookie in cookies {
+                var domainCookies = cookieData[cookie.domain] ?? [:]
+                if let properties = cookie.properties { domainCookies[cookie.name] = properties }
+                cookieData[cookie.domain] = domainCookies
+            }
+            UserDefaults.standard.set(cookieData, forKey: self.cookieJar)
+        }
+    }
+}
+
 
 // MARK: - Theme Studio
 struct ThemeStudioView: View {
@@ -522,7 +653,35 @@ struct ThemeStudioView: View {
     }
 }
 
-// MARK: - Helpers
+extension WebCoordinator: WKUIDelegate {
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        guard navigationAction.targetFrame == nil else { return nil }
+        let popup = WKWebView(frame: webView.bounds, configuration: configuration)
+        popup.navigationDelegate = self; popup.uiDelegate = self; popup.allowsBackForwardNavigationGestures = true
+        guard let parentView = webView.superview else { return nil }
+        parentView.addSubview(popup); popup.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([popup.topAnchor.constraint(equalTo: webView.topAnchor), popup.bottomAnchor.constraint(equalTo: webView.bottomAnchor), popup.leadingAnchor.constraint(equalTo: webView.leadingAnchor), popup.trailingAnchor.constraint(equalTo: webView.trailingAnchor)])
+        let gesture = UIPanGestureRecognizer(target: self, action: #selector(handlePopupPan(_:))); gesture.delegate = self
+        popup.scrollView.panGestureRecognizer.require(toFail: gesture); popup.addGestureRecognizer(gesture); popups.append(popup)
+        if let url = navigationAction.request.url, url.absoluteString != "about:blank" { popup.load(navigationAction.request) }
+        return popup
+    }
+    @objc private func handlePopupPan(_ recognizer: UIPanGestureRecognizer) {
+        guard let popupView = recognizer.view else { return }
+        let translation = recognizer.translation(in: popupView), velocity = recognizer.velocity(in: popupView)
+        switch recognizer.state {
+        case .changed: if translation.x > 0 { popupView.transform = CGAffineTransform(translationX: translation.x, y: 0) }
+        case .ended, .cancelled:
+            let shouldClose = translation.x > popupView.bounds.width * 0.4 || velocity.x > 800
+            if shouldClose { UIView.animate(withDuration: 0.25, animations: { popupView.transform = CGAffineTransform(translationX: popupView.bounds.width, y: 0) }) { [weak self] _ in self?.dismissTopPopup() }
+            } else { UIView.animate(withDuration: 0.2) { popupView.transform = .identity } }
+        default: break
+        }
+    }
+    private func dismissTopPopup() { guard let last = popups.last else { return }; last.removeFromSuperview(); popups.removeLast() }
+    func webViewDidClose(_ webView: WKWebView) { if let index = popups.firstIndex(of: webView) { webView.removeFromSuperview(); popups.remove(at: index) } }
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) { completionHandler() }
+}
 extension View {
     func labelStyle() -> some View {
         self
@@ -545,6 +704,15 @@ struct NeonTextFieldStyle: TextFieldStyle {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.neonPurple.opacity(0.3), lineWidth: 1)
             )
+    }
+}
+
+extension WebCoordinator: UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { return true }
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer, let view = pan.view else { return false }
+        let velocity = pan.velocity(in: view), translation = pan.translation(in: view)
+        return translation.x > 0 && abs(velocity.x) > abs(velocity.y)
     }
 }
 

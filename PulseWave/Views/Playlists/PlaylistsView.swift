@@ -132,6 +132,30 @@ struct QuickNavPill: View {
     }
 }
 
+struct WifiErrorVIew: View {
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                Image("wifi_error_waves")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .ignoresSafeArea()
+                    .blur(radius: 3)
+                    .opacity(0.6)
+                
+                Image("wifi_error_wavesa")
+                    .resizable()
+                    .frame(width: 270, height: 230)
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
 // MARK: - Playlist Card
 struct PlaylistCard: View {
     let playlist: PulsePlaylist

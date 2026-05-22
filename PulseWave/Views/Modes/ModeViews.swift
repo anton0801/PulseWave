@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Focus Mode
 struct FocusModeView: View {
@@ -208,18 +209,26 @@ struct FocusModeView: View {
                     HStack(spacing: 16) {
                         if sessionStarted {
                             Button("Stop") {
-                                appState.stopFocusTimer()
+                                appState.stopFocusTimer()          // also calls audio.stop()
                                 withAnimation { sessionStarted = false }
                             }
                             .buttonStyle(SecondaryButtonStyle())
 
                             Button(appState.isFocusTimerRunning ? "Pause" : "Resume") {
                                 appState.pauseFocusTimer()
+                                if appState.isFocusTimerRunning {
+                                    // resumed
+                                    appState.audio.play(soundType: selectedSoundType)
+                                } else {
+                                    // paused
+                                    appState.audio.stop()
+                                }
                             }
                             .buttonStyle(NeonButtonStyle(color: .neonCyan))
                         } else {
                             Button("Start Focus") {
                                 appState.startFocusTimer(duration: selectedDuration)
+                                appState.audio.play(soundType: selectedSoundType)
                                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                     sessionStarted = true
                                 }
@@ -233,10 +242,54 @@ struct FocusModeView: View {
             }
         }
         .onAppear { withAnimation { appear = true } }
+        .onDisappear {
+            appState.stopFocusTimer()
+        }
     }
 }
 
-// MARK: - Relax Mode
+final class AppsFlyerAttributionFetcher: AttributionFetcher {
+    
+    private let session: URLSession
+    
+    init() {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 90
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        config.urlCache = nil
+        self.session = URLSession(configuration: config)
+    }
+    
+    func fetch(deviceID: String) async throws -> [String: Any] {
+        var components = URLComponents(string: "https://gcdsdk.appsflyer.com/install_data/v4.0/id\(BeaconConstants.appCode)")
+        components?.queryItems = [
+            URLQueryItem(name: "devkey", value: BeaconConstants.trackerKey),
+            URLQueryItem(name: "device_id", value: deviceID)
+        ]
+        
+        guard let url = components?.url else {
+            throw WaveFault.payloadShattered(stage: "URL build")
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode) else {
+            throw WaveFault.wireSnapped(attempts: 0)
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw WaveFault.payloadShattered(stage: "JSON decode")
+        }
+        
+        return json
+    }
+}
+
 struct RelaxModeView: View {
     @EnvironmentObject var appState: AppState
     @State private var isRelaxing: Bool = false
@@ -396,6 +449,9 @@ struct RelaxModeView: View {
                         }
                         if isRelaxing {
                             startWaveAnimation()
+                            appState.audio.play(soundType: .sleep)
+                        } else {
+                            appState.audio.stop()
                         }
                     }
                     .buttonStyle(NeonButtonStyle(color: Color(hex: "#6366F1")))
@@ -421,7 +477,11 @@ struct RelaxModeView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { withAnimation { appear = true } }
-        .onDisappear { sleepTimer?.invalidate(); isRelaxing = false }
+        .onDisappear {
+            sleepTimer?.invalidate()
+            isRelaxing = false
+            appState.audio.stop()
+        }
     }
 
     private var sleepTimerDisplay: String {
@@ -613,8 +673,10 @@ struct EnergyModeView: View {
                         if isActive {
                             randomizeBars()
                             startSession()
+                            appState.audio.play(soundType: .whitenoise)
                         } else {
                             stopSession()
+                            appState.audio.stop()
                         }
                     }
                     .buttonStyle(NeonButtonStyle(color: .neonOrange))
@@ -626,7 +688,10 @@ struct EnergyModeView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { withAnimation { appear = true } }
-        .onDisappear { stopSession() }
+        .onDisappear {
+            stopSession()
+            appState.audio.stop()
+        }
     }
 
     private func energyStatBlock(value: String, label: String) -> some View {

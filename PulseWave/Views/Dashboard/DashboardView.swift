@@ -315,6 +315,103 @@ struct DashboardView: View {
     }
 }
 
+struct PulseWaveConsentView: View {
+    let viewModel: PulseWaveViewModel
+    
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                Image("waves")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .ignoresSafeArea()
+                    .opacity(0.9)
+                
+                if geometry.size.width < geometry.size.height {
+                    vertView
+                } else {
+                    HStack {
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 12) {
+                            Spacer()
+                            titleText
+                            subtitleText
+                        }
+                        Spacer()
+                        VStack {
+                            Spacer()
+                            actionButtons
+                        }
+                        Spacer()
+                    }
+                    .padding(.bottom, 24)
+                }
+            }
+        }
+        .ignoresSafeArea()
+        .preferredColorScheme(.dark)
+    }
+    
+    private var vertView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            titleText
+                .multilineTextAlignment(.center)
+            subtitleText
+                .multilineTextAlignment(.center)
+            actionButtons
+        }
+        .padding(.bottom, 24)
+    }
+    
+    private var titleText: some View {
+        Text("ALLOW NOTIFICATIONS ABOUT\nBONUSES AND PROMOS")
+            .font(.system(size: 23, weight: .black, design: .monospaced))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+    }
+    
+    private var actionButtons: some View {
+        VStack(spacing: 12) {
+            ac
+            sk
+        }
+        .padding(.horizontal, 12)
+    }
+    
+    private var ac: some View {
+        Button {
+            viewModel.acceptConsent()
+        } label: {
+            Image("wavesb")
+                .resizable()
+                .frame(width: 300, height: 55)
+        }
+    }
+    
+    private var sk: some View {
+        Button {
+            viewModel.skipConsent()
+        } label: {
+            Text("Skip")
+                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                .foregroundColor(.white)
+                .opacity(0.5)
+        }
+    }
+    
+    private var subtitleText: some View {
+        Text("STAY TUNED WITH BEST OFFERS FROM\nOUR CASINO")
+            .font(.system(size: 13, weight: .heavy, design: .monospaced))
+            .foregroundColor(.white.opacity(0.7))
+            .padding(.horizontal, 12)
+    }
+}
+
+
 // MARK: - Quick Action Card
 struct QuickActionCard: View {
     let icon: String

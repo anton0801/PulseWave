@@ -45,6 +45,36 @@ struct SettingsView: View {
                                     options: ["Low", "Medium", "High"],
                                     selected: $appState.soundQuality
                                 )
+                                Divider().background(Color.bgSurface)
+                                // Volume slider
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.neonPurple.opacity(0.15))
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: "speaker.wave.2.fill")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.neonPurple)
+                                    }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack {
+                                            Text("Volume")
+                                                .font(.system(size: 15, weight: .semibold))
+                                                .foregroundColor(.textPrimary)
+                                            Spacer()
+                                            Text("\(Int(appState.audio.volume * 100))%")
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundColor(.textMuted)
+                                        }
+                                        Slider(value: Binding(
+                                            get: { Double(appState.audio.volume) },
+                                            set: { appState.audio.setVolume(Float($0)) }
+                                        ), in: 0...1)
+                                        .accentColor(.neonPurple)
+                                    }
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
                             }
                         }
                         .padding(.horizontal, 18)

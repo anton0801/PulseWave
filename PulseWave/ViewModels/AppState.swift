@@ -2,6 +2,9 @@ import SwiftUI
 import Combine
 
 class AppState: ObservableObject {
+
+    // MARK: - Audio
+    let audio = PulseAudioEngine()
     // MARK: - Persisted Settings
     @AppStorage("hasCompletedOnboarding") var hasCompletedOnboarding: Bool = false
     @AppStorage("selectedThemeIndex") var selectedThemeIndex: Int = 0
@@ -128,6 +131,7 @@ class AppState: ObservableObject {
     func stopFocusTimer() {
         focusTimer?.cancel()
         isFocusTimerRunning = false
+        audio.stop()
     }
 
     func pauseFocusTimer() {
@@ -241,12 +245,12 @@ class AppState: ObservableObject {
     private func seedSampleData() {
         energyEntries = EnergyEntry.sampleWeek()
         sessions = [
-            RhythmSession(name: "Morning Focus", mood: .focus, duration: 25, intensity: 0.7, genre: .binaural, date: Date().addingTimeInterval(-3600), isCompleted: true, energyBefore: 0.4, energyAfter: 0.8),
+            RhythmSession(name: "Morning Focus", mood: .focus, duration: 25, intensity: 0.7, genre: .ambient, date: Date().addingTimeInterval(-3600), isCompleted: true, energyBefore: 0.4, energyAfter: 0.8),
             RhythmSession(name: "Afternoon Chill", mood: .chill, duration: 30, intensity: 0.3, genre: .lofi, date: Date().addingTimeInterval(-7200), isCompleted: true, energyBefore: 0.7, energyAfter: 0.5),
             RhythmSession(name: "Energy Boost", mood: .energy, duration: 20, intensity: 0.9, genre: .electronic, date: Date().addingTimeInterval(-86400), isCompleted: true, energyBefore: 0.3, energyAfter: 0.9),
         ]
         playlists = [
-            PulsePlaylist(name: "Deep Focus Flow", mood: .focus, duration: 45, tracksCount: 8, intensity: 0.6, genre: .binaural, createdAt: Date(), tracks: []),
+            PulsePlaylist(name: "Deep Focus Flow", mood: .focus, duration: 45, tracksCount: 8, intensity: 0.6, genre: .ambient, createdAt: Date(), tracks: []),
             PulsePlaylist(name: "Midnight Chill", mood: .night, duration: 60, tracksCount: 12, intensity: 0.2, genre: .ambient, createdAt: Date(), tracks: []),
         ]
         saveEnergy(); saveSessions(); savePlaylists()
@@ -255,4 +259,115 @@ class AppState: ObservableObject {
 
 enum SessionType {
     case none, focus, relax, energy
+}
+
+@MainActor
+final class PulseWaveViewModel: ObservableObject {
+        
+    @Published var navigateToMain = false {
+        didSet {
+            if navigateToMain {
+                deadlineTask?.cancel()
+                uiLocked = true
+            }
+        }
+    }
+    
+    @Published var navigateToWeb = false {
+        didSet {
+            if navigateToWeb {
+                deadlineTask?.cancel()
+                uiLocked = true
+            }
+        }
+    }
+    
+    @Published var showPermissionPrompt = false
+    
+    private let coordinator: WaveCoordinator
+    private var cancellables = Set<AnyCancellable>()
+    @Published var showOfflineView = false
+    private var deadlineTask: Task<Void, Never>?
+    
+    private var uiLocked: Bool = false
+    
+    init() {
+        self.coordinator = WaveCoordinator()
+        wireUp()
+    }
+    
+    deinit {
+        deadlineTask?.cancel()
+    }
+    
+    func acceptConsent() {
+        coordinator.acceptConsent {
+            self.showPermissionPrompt = false
+            return true
+        }
+    }
+    
+    func boot() {
+        coordinator.warmUp()
+        armDeadline()
+    }
+    
+    func ingestAttribution(_ data: [String: Any]) {
+        Task {
+            coordinator.ingestSignals(data)
+            await coordinator.surf()
+        }
+    }
+    
+    private func wireUp() {
+        coordinator.outcomePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] outcome in
+                self?.handleOutcome(outcome)
+            }
+            .store(in: &cancellables)
+    }
+    
+    func networkConnectivityChanged(_ connected: Bool) {
+        showOfflineView = !connected
+    }
+    
+    private func handleOutcome(_ outcome: WaveOutcome) {
+        guard !uiLocked else {
+            return
+        }
+        
+        switch outcome {
+        case .adrift:
+            break
+        case .requestConsent:
+            showPermissionPrompt = true
+        case .openBuoy:
+            navigateToWeb = true
+        case .driftedToShore:
+            navigateToMain = true
+        }
+    }
+    
+    func ingestDeeplinks(_ data: [String: Any]) {
+        coordinator.ingestEchoes(data)
+    }
+    
+    func skipConsent() {
+        coordinator.deferConsent()
+        showPermissionPrompt = false
+    }
+    
+    private func armDeadline() {
+        deadlineTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            
+            guard let self = self else { return }
+            
+            let shouldFire = self.coordinator.reportTideExpired()
+            if shouldFire {
+                self.handleOutcome(.driftedToShore)
+            }
+        }
+    }
 }

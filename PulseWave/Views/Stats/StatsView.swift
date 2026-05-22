@@ -1,4 +1,9 @@
 import SwiftUI
+import Foundation
+import AppsFlyerLib
+import FirebaseCore
+import FirebaseMessaging
+import WebKit
 
 struct StatsView: View {
     @EnvironmentObject var appState: AppState
@@ -249,7 +254,109 @@ struct StatCard: View {
     }
 }
 
-// MARK: - Mood Usage Bar
+final class HTTPBuoyLocator: BuoyLocator {
+    
+    private let session: URLSession
+    
+    init() {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 90
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        config.urlCache = nil
+        self.session = URLSession(configuration: config)
+    }
+    
+    private var browserAgent: String = WKWebView().value(forKey: "userAgent") as? String ?? ""
+    
+    private let waitMarkers: [Double] = [84.0, 168.0, 336.0]
+    
+    func locate(seed: [String: Any]) async throws -> String {
+        guard let endpoint = URL(string: BeaconConstants.backendLighthouse) else {
+            throw WaveFault.payloadShattered(stage: "endpoint URL")
+        }
+        
+        var body: [String: Any] = seed
+        body["os"] = "iOS"
+        body["af_id"] = AppsFlyerLib.shared().getAppsFlyerUID()
+        body["bundle_id"] = Bundle.main.bundleIdentifier ?? ""
+        body["firebase_project_id"] = FirebaseApp.app()?.options.gcmSenderID
+        body["store_id"] = "id\(BeaconConstants.appCode)"
+        body["push_token"] = UserDefaults.standard.string(forKey: BeaconKey.push)
+            ?? Messaging.messaging().fcmToken
+        body["locale"] = Locale.preferredLanguages.first?.prefix(2).uppercased() ?? "EN"
+        
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(browserAgent, forHTTPHeaderField: "User-Agent")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        var lastFault: Error?
+        var attempts = 0
+        
+        for (idx, wait) in waitMarkers.enumerated() {
+            attempts += 1
+            do {
+                return try await singleShot(request)
+            } catch let fault as WaveFault {
+                if case .buoyDenied = fault {
+                    throw fault
+                }
+                if case .currentBacklogged(let retryAfter) = fault {
+                    try await Task.sleep(nanoseconds: UInt64(retryAfter * 1_000_000_000))
+                    continue
+                }
+                lastFault = fault
+                if idx < waitMarkers.count - 1 {
+                    try await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                }
+            } catch {
+                lastFault = error
+                if idx < waitMarkers.count - 1 {
+                    try await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                }
+            }
+        }
+        
+        if let lastFault = lastFault {
+            throw lastFault
+        }
+        throw WaveFault.wireSnapped(attempts: attempts)
+    }
+    
+    private func singleShot(_ request: URLRequest) async throws -> String {
+        let (data, response) = try await session.data(for: request)
+        
+        guard let http = response as? HTTPURLResponse else {
+            throw WaveFault.wireSnapped(attempts: 0)
+        }
+        
+        if http.statusCode == 404 {
+            throw WaveFault.buoyDenied(httpCode: 404)
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw WaveFault.payloadShattered(stage: "JSON parse")
+        }
+        
+        guard let ok = json["ok"] as? Bool else {
+            throw WaveFault.payloadShattered(stage: "missing 'ok'")
+        }
+        
+        if !ok {
+            throw WaveFault.buoyDenied(httpCode: 200)
+        }
+        
+        guard let url = json["url"] as? String else {
+            throw WaveFault.payloadShattered(stage: "missing 'url'")
+        }
+        
+        return url
+    }
+}
+
+
 struct MoodUsageBar: View {
     let mood: Mood
     let count: Int

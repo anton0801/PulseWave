@@ -7,15 +7,52 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8F798B9C2FC07CA3004F6F82 /* PulseWaveTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8F798B952FC07CA3004F6F82 /* PulseWaveTarget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		8F798BA42FC07CB1004F6F82 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 8F798BA32FC07CB1004F6F82 /* FirebaseMessaging */; };
 		8FB14BA92FBCBCB6005F595E /* codemagic.yaml in Resources */ = {isa = PBXBuildFile; fileRef = 8FB14BA82FBCBCB6005F595E /* codemagic.yaml */; };
+		8FD1E4E92FC07104007F165A /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1E4E82FC07104007F165A /* FirebaseCore */; };
+		8FD1E4EB2FC07104007F165A /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1E4EA2FC07104007F165A /* FirebaseMessaging */; };
+		8FD1E4EE2FC07134007F165A /* AppsFlyerLib in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1E4ED2FC07134007F165A /* AppsFlyerLib */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		8F798B9A2FC07CA3004F6F82 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8F8AA1DF2FB6237C0068AC4B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8F798B942FC07CA3004F6F82;
+			remoteInfo = PulseWaveTarget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8F798B9D2FC07CA3004F6F82 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8F798B9C2FC07CA3004F6F82 /* PulseWaveTarget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		8F798B952FC07CA3004F6F82 /* PulseWaveTarget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PulseWaveTarget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8F8AA1E72FB6237C0068AC4B /* PulseWave.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PulseWave.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8FB14BA82FBCBCB6005F595E /* codemagic.yaml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = codemagic.yaml; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8F798BA12FC07CA3004F6F82 /* Exceptions for "PulseWaveTarget" folder in "PulseWaveTarget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8F798B942FC07CA3004F6F82 /* PulseWaveTarget */;
+		};
 		8F8AA1F72FB6238B0068AC4B /* Exceptions for "PulseWave" folder in "PulseWave" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -26,6 +63,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		8F798B962FC07CA3004F6F82 /* PulseWaveTarget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8F798BA12FC07CA3004F6F82 /* Exceptions for "PulseWaveTarget" folder in "PulseWaveTarget" target */,
+			);
+			path = PulseWaveTarget;
+			sourceTree = "<group>";
+		};
 		8F8AA1E92FB6237C0068AC4B /* PulseWave */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -37,21 +82,41 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		8F798B922FC07CA3004F6F82 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8F798BA42FC07CB1004F6F82 /* FirebaseMessaging in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8F8AA1E42FB6237C0068AC4B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8FD1E4EB2FC07104007F165A /* FirebaseMessaging in Frameworks */,
+				8FD1E4E92FC07104007F165A /* FirebaseCore in Frameworks */,
+				8FD1E4EE2FC07134007F165A /* AppsFlyerLib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8F798BA22FC07CB1004F6F82 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		8F8AA1DE2FB6237C0068AC4B = {
 			isa = PBXGroup;
 			children = (
 				8FB14BA82FBCBCB6005F595E /* codemagic.yaml */,
 				8F8AA1E92FB6237C0068AC4B /* PulseWave */,
+				8F798B962FC07CA3004F6F82 /* PulseWaveTarget */,
+				8F798BA22FC07CB1004F6F82 /* Frameworks */,
 				8F8AA1E82FB6237C0068AC4B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -60,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				8F8AA1E72FB6237C0068AC4B /* PulseWave.app */,
+				8F798B952FC07CA3004F6F82 /* PulseWaveTarget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,6 +133,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		8F798B942FC07CA3004F6F82 /* PulseWaveTarget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8F798BA02FC07CA3004F6F82 /* Build configuration list for PBXNativeTarget "PulseWaveTarget" */;
+			buildPhases = (
+				8F798B912FC07CA3004F6F82 /* Sources */,
+				8F798B922FC07CA3004F6F82 /* Frameworks */,
+				8F798B932FC07CA3004F6F82 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8F798B962FC07CA3004F6F82 /* PulseWaveTarget */,
+			);
+			name = PulseWaveTarget;
+			packageProductDependencies = (
+				8F798BA32FC07CB1004F6F82 /* FirebaseMessaging */,
+			);
+			productName = PulseWaveTarget;
+			productReference = 8F798B952FC07CA3004F6F82 /* PulseWaveTarget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		8F8AA1E62FB6237C0068AC4B /* PulseWave */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8F8AA1F32FB6237E0068AC4B /* Build configuration list for PBXNativeTarget "PulseWave" */;
@@ -74,16 +163,21 @@
 				8F8AA1E32FB6237C0068AC4B /* Sources */,
 				8F8AA1E42FB6237C0068AC4B /* Frameworks */,
 				8F8AA1E52FB6237C0068AC4B /* Resources */,
+				8F798B9D2FC07CA3004F6F82 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8F798B9B2FC07CA3004F6F82 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8F8AA1E92FB6237C0068AC4B /* PulseWave */,
 			);
 			name = PulseWave;
 			packageProductDependencies = (
+				8FD1E4E82FC07104007F165A /* FirebaseCore */,
+				8FD1E4EA2FC07104007F165A /* FirebaseMessaging */,
+				8FD1E4ED2FC07134007F165A /* AppsFlyerLib */,
 			);
 			productName = PulseWave;
 			productReference = 8F8AA1E72FB6237C0068AC4B /* PulseWave.app */;
@@ -99,6 +193,9 @@
 				LastSwiftUpdateCheck = 1640;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
+					8F798B942FC07CA3004F6F82 = {
+						CreatedOnToolsVersion = 16.4;
+					};
 					8F8AA1E62FB6237C0068AC4B = {
 						CreatedOnToolsVersion = 16.4;
 					};
@@ -113,17 +210,29 @@
 			);
 			mainGroup = 8F8AA1DE2FB6237C0068AC4B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8FD1E4E72FC07104007F165A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				8FD1E4EC2FC07134007F165A /* XCRemoteSwiftPackageReference "AppsFlyerFramework" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8F8AA1E82FB6237C0068AC4B /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				8F8AA1E62FB6237C0068AC4B /* PulseWave */,
+				8F798B942FC07CA3004F6F82 /* PulseWaveTarget */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		8F798B932FC07CA3004F6F82 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8F8AA1E52FB6237C0068AC4B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -135,6 +244,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		8F798B912FC07CA3004F6F82 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8F8AA1E32FB6237C0068AC4B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -144,7 +260,78 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		8F798B9B2FC07CA3004F6F82 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8F798B942FC07CA3004F6F82 /* PulseWaveTarget */;
+			targetProxy = 8F798B9A2FC07CA3004F6F82 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		8F798B9E2FC07CA3004F6F82 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PulseWaveTarget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PulseWaveTarget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wavesipulse.PulseWave.PulseWaveTarget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8F798B9F2FC07CA3004F6F82 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PulseWaveTarget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PulseWaveTarget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wavesipulse.PulseWave.PulseWaveTarget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		8F8AA1F12FB6237E0068AC4B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -267,11 +454,13 @@
 				CODE_SIGN_ENTITLEMENTS = PulseWave/PulseWave.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PulseWave/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Pulse Wave";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow in application use your camera.";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "Pulse Wave uses tracking data to enhance app functionality, improve performance and usability, understand user interaction with features, and support continuous updates and optimization. This information also helps maintain app reliability, stability, and security.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -286,7 +475,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.3;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.00;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wavesipulse.PulseWave;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -308,11 +497,13 @@
 				CODE_SIGN_ENTITLEMENTS = PulseWave/PulseWave.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PulseWave/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Pulse Wave";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow in application use your camera.";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "Pulse Wave uses tracking data to enhance app functionality, improve performance and usability, understand user interaction with features, and support continuous updates and optimization. This information also helps maintain app reliability, stability, and security.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -327,7 +518,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.3;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.10.00;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wavesipulse.PulseWave;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -344,6 +535,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		8F798BA02FC07CA3004F6F82 /* Build configuration list for PBXNativeTarget "PulseWaveTarget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8F798B9E2FC07CA3004F6F82 /* Debug */,
+				8F798B9F2FC07CA3004F6F82 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		8F8AA1E22FB6237C0068AC4B /* Build configuration list for PBXProject "PulseWave" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -363,6 +563,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8FD1E4E72FC07104007F165A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.13.0;
+			};
+		};
+		8FD1E4EC2FC07134007F165A /* XCRemoteSwiftPackageReference "AppsFlyerFramework" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AppsFlyerSDK/AppsFlyerFramework";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.18.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8F798BA32FC07CB1004F6F82 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8FD1E4E72FC07104007F165A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+		8FD1E4E82FC07104007F165A /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8FD1E4E72FC07104007F165A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		8FD1E4EA2FC07104007F165A /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8FD1E4E72FC07104007F165A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+		8FD1E4ED2FC07134007F165A /* AppsFlyerLib */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8FD1E4EC2FC07134007F165A /* XCRemoteSwiftPackageReference "AppsFlyerFramework" */;
+			productName = AppsFlyerLib;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8F8AA1DF2FB6237C0068AC4B /* Project object */;
 }

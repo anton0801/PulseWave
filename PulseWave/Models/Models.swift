@@ -23,6 +23,40 @@ struct EnergyEntry: Identifiable, Codable {
     }
 }
 
+struct BeaconKey {
+    static let buoyURL = "pw_buoy_url"
+    static let buoyMode = "pw_buoy_mode"
+    static let primed = "pw_primed"
+
+    static let pushURL = "temp_url"
+    static let fcm = "fcm_token"
+    static let push = "push_token"
+}
+
+enum WaveFault: Error {
+    case sourceQuiet
+    case buoyDenied(httpCode: Int)
+    case voltageMuffled
+    case payloadShattered(stage: String)
+    case wireSnapped(attempts: Int)
+    case currentBacklogged(retryAfter: TimeInterval)
+    case tideExpired
+    case promiseBroken(reason: String)
+    
+    var category: String {
+        switch self {
+        case .sourceQuiet: return "sourceQuiet"
+        case .buoyDenied: return "buoyDenied"
+        case .voltageMuffled: return "voltageMuffled"
+        case .payloadShattered: return "payloadShattered"
+        case .wireSnapped: return "wireSnapped"
+        case .currentBacklogged: return "currentBacklogged"
+        case .tideExpired: return "tideExpired"
+        case .promiseBroken: return "promiseBroken"
+        }
+    }
+}
+
 // MARK: - Rhythm Session
 struct RhythmSession: Identifiable, Codable {
     var id: UUID = UUID()
@@ -82,6 +116,24 @@ struct FocusSession: Identifiable, Codable {
     var elapsedSeconds: Int
 }
 
+struct BeaconRecord: Codable {
+    let signals: [String: String]
+    let echoes: [String: String]
+    let buoyURL: String?
+    let buoyMode: String?
+    let stillness: Bool
+    let consentRipple: Bool
+    let consentDamped: Bool
+    let consentTracedAt: Date?
+}
+
+enum WaveOutcome {
+    case adrift
+    case requestConsent
+    case openBuoy
+    case driftedToShore
+}
+
 // MARK: - Enums
 enum Genre: String, CaseIterable, Codable {
     case electronic = "Electronic"
@@ -92,7 +144,6 @@ enum Genre: String, CaseIterable, Codable {
     case rock       = "Rock"
     case lofi       = "Lo-Fi"
     case nature     = "Nature"
-    case binaural   = "Binaural Beats"
 }
 
 enum SoundType: String, CaseIterable, Codable {
@@ -102,6 +153,9 @@ enum SoundType: String, CaseIterable, Codable {
     case nature     = "Nature Sounds"
     case whitenoise = "White Noise"
     case classical  = "Classical"
+    case focus      = "Focus Tones"
+    case meditation = "Meditation"
+    case sleep      = "Sleep Waves"
 
     var icon: String {
         switch self {
@@ -111,6 +165,9 @@ enum SoundType: String, CaseIterable, Codable {
         case .nature:     return "leaf.fill"
         case .whitenoise: return "waveform"
         case .classical:  return "music.quarternote.3"
+        case .focus:      return "brain.head.profile"
+        case .meditation: return "sparkles"
+        case .sleep:      return "moon.zzz.fill"
         }
     }
 }
@@ -121,7 +178,7 @@ struct NeonTheme: Identifiable, Codable {
     var name: String
     var primaryHex: String
     var secondaryHex: String
-    var animationSpeed: Double  // 0.5 - 2.0
+    var animationSpeed: Double
 
     var primaryColor: Color { Color(hex: primaryHex) }
     var secondaryColor: Color { Color(hex: secondaryHex) }
@@ -134,7 +191,6 @@ struct NeonTheme: Identifiable, Codable {
     ]
 }
 
-// MARK: - Stats Summary
 struct StatsSummary {
     var minutesListened: Int
     var moodUsage: [Mood: Int]
@@ -142,4 +198,15 @@ struct StatsSummary {
     var avgEnergyLevel: Double
     var topMood: Mood
     var streakDays: Int
+}
+
+struct BeaconConstants {
+    static let trackerKey = "VD4Sh6fuoVKWbyRuqJvD35"
+    static let cookieBuoy = "pulsewave_buoy"
+    static let suiteBeacon = "group.pulsewave.beacon"
+    static let backendLighthouse = "https://pulsewavefeelall.com/config.php"
+    static let appCode = "6771033872"
+    static let keychainService = "com.pulsewave.beacon"
+    static let logRipple = "🌊 [PulseWave]"
+    static let keychainAccount = "pw_beacon_record"
 }

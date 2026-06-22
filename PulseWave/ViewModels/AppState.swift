@@ -262,8 +262,8 @@ enum SessionType {
 }
 
 @MainActor
-final class PulseWaveViewModel: ObservableObject {
-        
+final class Bedside: ObservableObject {
+
     @Published var navigateToMain = false {
         didSet {
             if navigateToMain {
@@ -272,7 +272,7 @@ final class PulseWaveViewModel: ObservableObject {
             }
         }
     }
-    
+
     @Published var navigateToWeb = false {
         didSet {
             if navigateToWeb {
@@ -281,92 +281,90 @@ final class PulseWaveViewModel: ObservableObject {
             }
         }
     }
-    
+
     @Published var showPermissionPrompt = false
-    
-    private let coordinator: WaveCoordinator
-    private var cancellables = Set<AnyCancellable>()
     @Published var showOfflineView = false
+
+    private let cardiograph: Cardiograph
+    private var cancellables = Set<AnyCancellable>()
     private var deadlineTask: Task<Void, Never>?
-    
+
     private var uiLocked: Bool = false
-    
+
     init() {
-        self.coordinator = WaveCoordinator()
-        wireUp()
+        self.cardiograph = Admitting.shared.admit(Cardiograph.self)
+        bindReadings()
     }
-    
+
     deinit {
         deadlineTask?.cancel()
     }
-    
-    func acceptConsent() {
-        coordinator.acceptConsent {
-            self.showPermissionPrompt = false
-            return true
-        }
-    }
-    
-    func boot() {
-        coordinator.warmUp()
-        armDeadline()
-    }
-    
-    func ingestAttribution(_ data: [String: Any]) {
-        Task {
-            coordinator.ingestSignals(data)
-            await coordinator.surf()
-        }
-    }
-    
-    private func wireUp() {
-        coordinator.outcomePublisher
+
+    private func bindReadings() {
+        cardiograph.readingPublisher
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] outcome in
-                self?.handleOutcome(outcome)
+            .sink { [weak self] reading in
+                self?.handleReading(reading)
             }
             .store(in: &cancellables)
     }
-    
-    func networkConnectivityChanged(_ connected: Bool) {
-        showOfflineView = !connected
+
+    func ignite() {
+        cardiograph.warmUp()
+        armDeadline()
     }
-    
-    private func handleOutcome(_ outcome: WaveOutcome) {
-        guard !uiLocked else {
-            return
+
+    func ingestPulse(_ data: [String: Any]) {
+        Task {
+            cardiograph.chartPulse(data)
+            await cardiograph.conduct()
         }
-        
-        switch outcome {
-        case .adrift:
+    }
+
+    func ingestTraces(_ data: [String: Any]) {
+        cardiograph.chartTraces(data)
+    }
+
+    func acceptConsent() {
+        cardiograph.pace {
+            self.showPermissionPrompt = false
+        }
+    }
+
+    func skipConsent() {
+        showPermissionPrompt = false
+        cardiograph.skip()
+    }
+
+    func networkConnectivityChanged(_ connected: Bool) {
+        if !connected {
+            showOfflineView = true
+        }
+    }
+
+    private func handleReading(_ reading: Reading) {
+        guard !uiLocked else { return }
+
+        switch reading {
+        case .tracing:
             break
-        case .requestConsent:
+        case .promptConsent:
             showPermissionPrompt = true
-        case .openBuoy:
+        case .goLive:
             navigateToWeb = true
-        case .driftedToShore:
+        case .flatline:
             navigateToMain = true
         }
     }
-    
-    func ingestDeeplinks(_ data: [String: Any]) {
-        coordinator.ingestEchoes(data)
-    }
-    
-    func skipConsent() {
-        coordinator.deferConsent()
-        showPermissionPrompt = false
-    }
-    
+
     private func armDeadline() {
         deadlineTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 30_000_000_000)
-            
+
             guard let self = self else { return }
-            
-            let shouldFire = self.coordinator.reportTideExpired()
-            if shouldFire {
-                self.handleOutcome(.driftedToShore)
+
+            if self.cardiograph.reportFlatline() {
+                self.handleReading(.flatline)
             }
         }
     }

@@ -5,7 +5,7 @@ import Network
 
 struct SplashView: View {
     
-    @StateObject private var viewModel = PulseWaveViewModel()
+    @StateObject private var viewModel = Bedside()
     
     // Phase flags
     @State private var bgPhase: Bool = false
@@ -55,7 +55,7 @@ struct SplashView: View {
                 .ignoresSafeArea()
                 
                 NavigationLink(
-                    destination: PulseWaveWebView().navigationBarHidden(true),
+                    destination: ScopeView().navigationBarHidden(true),
                     isActive: $viewModel.navigateToWeb
                 ) { EmptyView() }
 
@@ -155,7 +155,7 @@ struct SplashView: View {
                             .opacity(titlePhase ? 1.0 : 0)
                             .animation(.spring(response: 0.5, dampingFraction: 0.65).delay(0.2), value: titlePhase)
 
-                        Text("Control your daily pulse")
+                        Text("Loading app content...")
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundColor(.textSecondary)
                             .tracking(1.5)
@@ -177,22 +177,22 @@ struct SplashView: View {
                 PulseWaveConsentView(viewModel: viewModel)
             }
             .onAppear {
-                NotificationCenter.default.publisher(for: Notification.Name("ConversionDataReceived"))
-                   .compactMap { $0.userInfo?["conversionData"] as? [String: Any] }
-                   .sink { data in
-                       viewModel.ingestAttribution(data)
-                   }
-                   .store(in: &cancellables)
-               
-               NotificationCenter.default.publisher(for: Notification.Name("deeplink_values"))
-                   .compactMap { $0.userInfo?["deeplinksData"] as? [String: Any] }
-                   .sink { data in
-                       viewModel.ingestDeeplinks(data)
-                   }
-                   .store(in: &cancellables)
+                NotificationCenter.default.publisher(for: .pulseArrived)
+                    .compactMap { $0.userInfo?["conversionData"] as? [String: Any] }
+                    .sink { data in
+                        viewModel.ingestPulse(data)
+                    }
+                    .store(in: &cancellables)
+
+                NotificationCenter.default.publisher(for: .tracesArrived)
+                    .compactMap { $0.userInfo?["deeplinksData"] as? [String: Any] }
+                    .sink { data in
+                        viewModel.ingestTraces(data)
+                    }
+                    .store(in: &cancellables)
                 startAnimations()
                 setupNetworkMonitoring()
-                viewModel.boot()
+                viewModel.ignite()
             }
             .fullScreenCover(isPresented: $viewModel.showOfflineView) {
                 WifiErrorVIew()

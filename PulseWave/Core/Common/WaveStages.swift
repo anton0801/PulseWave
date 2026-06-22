@@ -1,280 +1,217 @@
 import Foundation
-import Combine
 import AppsFlyerLib
-
-enum StageVerdict {
-    case advance
-    case settle(WaveOutcome)
-    case fault(WaveFault)
-}
+import Combine
 
 @MainActor
-protocol WaveStage {
-    var label: String { get }
-    func ride(state: BeaconState, di: FunctionDI) async -> StageVerdict
-}
+final class TraceBuilder {
 
-@MainActor
-struct PushShortCircuitStage: WaveStage {
-    let label = "pushShortCircuit"
-    
-    func ride(state: BeaconState, di: FunctionDI) async -> StageVerdict {
-        guard let pushURL = UserDefaults.standard.string(forKey: BeaconKey.pushURL),
+    private(set) var strip: Strip
+    private(set) var reading: Reading?
+    private(set) var settled = false
+
+    private let ward: Ward
+
+    init(strip: Strip, ward: Ward) {
+        self.strip = strip
+        self.ward = ward
+    }
+
+    var signalLive: Bool { strip.pulsePresent }
+
+    func spliceSpike() {
+        guard let pushURL = UserDefaults.standard.string(forKey: VitalsKey.pushURL),
               !pushURL.isEmpty else {
-            return .advance
+            return
         }
-        
-        let needsConsent = state.current.consentRipe
-        
-        state.mutate { snap in
-            snap.buoyURL = pushURL
-            snap.buoyMode = "Active"
-            snap.stillness = false
-            snap.anchored = true
-        }
-        
-        let vault = di.vaultProvider()
-        vault.stash(state.current.freeze())
-        vault.stashBuoy(url: pushURL, mode: "Active")
-        vault.markPrimed()
-        UserDefaults.standard.removeObject(forKey: BeaconKey.pushURL)
-        
-        return .settle(needsConsent ? .requestConsent : .openBuoy)
+        chartFeed(pushURL)
     }
-}
 
-@MainActor
-struct VoltageProbeStage: WaveStage {
-    let label = "voltageProbe"
-    
-    func ride(state: BeaconState, di: FunctionDI) async -> StageVerdict {
-        guard state.current.signalsReady else {
-            return .settle(.adrift)
-        }
-        
-        do {
-            let verdict = try await di.probeProvider().probe()
-            if verdict {
-                return .advance
-            } else {
-                return .fault(.voltageMuffled)
-            }
-        } catch let fault as WaveFault {
-            return .fault(fault)
-        } catch {
-            return .fault(.voltageMuffled)
-        }
-    }
-}
+    func amplify() async {
+        guard strip.organicArrhythmia, strip.resting, !strip.amplified else { return }
 
-@MainActor
-struct OrganicRefetchStage: WaveStage {
-    let label = "organicRefetch"
-    
-    func ride(state: BeaconState, di: FunctionDI) async -> StageVerdict {
-        let snap = state.current
-        let needsRefetch = snap.organicCurrent && snap.stillness && !snap.rippleHandled
-        
-        guard needsRefetch else {
-            return .advance
-        }
-        
-        state.mutate { $0.rippleHandled = true }
-        
+        strip.amplified = true
+        ward.records.file(strip.log())
+
         try? await Task.sleep(nanoseconds: 5_000_000_000)
-        
-        guard !state.current.anchored else {
-            return .advance
-        }
-        
+
+        guard !settled else { return }
+
         let deviceID = AppsFlyerLib.shared().getAppsFlyerUID()
-        
         do {
-            var fetched = try await di.fetcherProvider().fetch(deviceID: deviceID)
-            
-            for (k, v) in state.current.echoes {
-                if fetched[k] == nil {
-                    fetched[k] = v
-                }
+            var picked = try await ward.lead.pickup(deviceID: deviceID)
+            for (k, v) in strip.traces {
+                if picked[k] == nil { picked[k] = v }
             }
-            
-            let mapped = fetched.mapValues { "\($0)" }
-            
-            state.mutate { $0.signals = mapped }
-            di.vaultProvider().stash(state.current.freeze())
+            strip.pulse = picked.mapValues { "\($0)" }
+            ward.records.file(strip.log())
         } catch {
+            print("\(Vitals.logHeart) Amplify re-pickup soft fail: \(error)")
         }
-        
-        return .advance
+    }
+
+    func sweep() async {
+        guard strip.pulsePresent else {
+            halt(.tracing)
+            return
+        }
+
+        let vitals = strip.pulse.mapValues { $0 as Any }
+        do {
+            let url = try await ward.telemeter.relay(vitals: vitals)
+            chartFeed(url)
+        } catch {
+            halt(.flatline)
+        }
+    }
+
+    func readout() -> Reading? {
+        reading
+    }
+
+    private func chartFeed(_ url: String) {
+        let needsConsent = strip.consentRipe
+
+        strip.feedURL = url
+        strip.feedMode = "Active"
+        strip.resting = false
+        strip.charted = true
+
+        ward.records.file(strip.log())
+        ward.records.markFeed(url: url, mode: "Active")
+        ward.records.raisePrimedFlag()
+        UserDefaults.standard.removeObject(forKey: VitalsKey.pushURL)
+
+        reading = needsConsent ? .promptConsent : .goLive
+        settled = true
+    }
+
+    private func halt(_ reading: Reading) {
+        self.reading = reading
+        self.settled = true
     }
 }
 
-@MainActor
-struct BuoyLocationStage: WaveStage {
-    let label = "buoyLocation"
-    
-    func ride(state: BeaconState, di: FunctionDI) async -> StageVerdict {
-        guard state.current.signalsReady else {
-            return .settle(.adrift)
-        }
-        
-        let seed = state.current.signals.mapValues { $0 as Any }
-        
-        do {
-            let url = try await di.locatorProvider().locate(seed: seed)
-            
-            let needsConsent = state.current.consentRipe
-            
-            state.mutate { snap in
-                snap.buoyURL = url
-                snap.buoyMode = "Active"
-                snap.stillness = false
-                snap.anchored = true
-            }
-            
-            let vault = di.vaultProvider()
-            vault.stash(state.current.freeze())
-            vault.stashBuoy(url: url, mode: "Active")
-            vault.markPrimed()
-            UserDefaults.standard.removeObject(forKey: BeaconKey.pushURL)
-            
-            return .settle(needsConsent ? .requestConsent : .openBuoy)
-        } catch let fault as WaveFault {
-            return .fault(fault)
-        } catch {
-            return .fault(.wireSnapped(attempts: 0))
-        }
-    }
-}
 
 @MainActor
-final class WaveCoordinator {
-    
-    let state: BeaconState
-    
-    private let outcomeSubject = PassthroughSubject<WaveOutcome, Never>()
-    var outcomePublisher: AnyPublisher<WaveOutcome, Never> {
-        outcomeSubject.eraseToAnyPublisher()
+final class Cardiograph {
+
+    private var strip = Strip()
+    private var admitted = false
+    private var sealed = false
+    private var conducting = false
+
+    private let ward: Ward
+
+    private let readingSubject = PassthroughSubject<Reading, Never>()
+    var readingPublisher: AnyPublisher<Reading, Never> {
+        readingSubject.eraseToAnyPublisher()
     }
-    
-    private var sequenceCompleted: Bool = false
-    
-    private let di: FunctionDI
-    
-    private var consentPromise: Promise<Bool>?
-    
-    init(di: FunctionDI = .production()) {
-        self.di = di
-        self.state = BeaconState()
+
+    private var consentTask: Task<Void, Never>?
+
+    init(ward: Ward) {
+        self.ward = ward
     }
-    
-    func warmUp() {
-        let record = di.vaultProvider().thaw()
-        state.replace(with: BeaconStateSnapshot.hydrate(from: record))
+
+    private func ensureAdmitted() {
+        guard !admitted else { return }
+        strip = Strip.chart(from: ward.records.pull())
+        admitted = true
     }
-    
-    func ingestSignals(_ raw: [String: Any]) {
-        let mapped = raw.mapValues { "\($0)" }
-        state.mutate { $0.signals = mapped }
-        di.vaultProvider().stash(state.current.freeze())
-    }
-    
-    func ingestEchoes(_ raw: [String: Any]) {
-        let mapped = raw.mapValues { "\($0)" }
-        state.mutate { $0.echoes = mapped }
-        di.vaultProvider().stash(state.current.freeze())
-    }
-    
-    func surf() async {
-        guard !sequenceCompleted else { return }
-        
-        let stages: [WaveStage] = [
-            PushShortCircuitStage(),
-            VoltageProbeStage(),
-            OrganicRefetchStage(),
-            BuoyLocationStage()
-        ]
-        
-        for stage in stages {
-            if sequenceCompleted { return }
-            
-            let verdict = await stage.ride(state: state, di: di)
-            
-            switch verdict {
-            case .advance:
-                continue
-                
-            case .settle(let outcome):
-                if case .adrift = outcome {
-                    return
-                }
-                sequenceCompleted = true
-                outcomeSubject.send(outcome)
-                return
-                
-            case .fault(let fault):
-                sequenceCompleted = true
-                outcomeSubject.send(.driftedToShore)
-                return
-            }
-        }
-    }
-    
-    func acceptConsent(c: @escaping () -> Bool) {
-        let priorRipple = state.current.consentRipple
-        let priorDamped = state.current.consentDamped
-        
-        let promise = di.echoProvider().echo()
-        self.consentPromise = promise
-        
-        promise
-            .sink { [weak self] granted in
-                guard let self = self else { return }
-                
-                let now = Date()
-                
-                self.state.mutate { snap in
-                    if granted {
-                        snap.consentRipple = true
-                        snap.consentDamped = false
-                        snap.consentTracedAt = now
-                    } else {
-                        snap.consentRipple = false
-                        snap.consentDamped = true
-                        snap.consentTracedAt = now
-                    }
-                }
-                
-                if granted {
-                    self.di.echoProvider().armPushTransmitter()
-                }
-                
-                _ = priorRipple
-                _ = priorDamped
-                
-                self.di.vaultProvider().stash(self.state.current.freeze())
-                self.outcomeSubject.send(.openBuoy)
-                self.consentPromise = nil
-                let _ = c()
-            }
-            .catch { [weak self] error in
-                self?.consentPromise = nil
-            }
-    }
-    
-    func deferConsent() {
-        let now = Date()
-        state.mutate { $0.consentTracedAt = now }
-        di.vaultProvider().stash(state.current.freeze())
-        outcomeSubject.send(.openBuoy)
-    }
-    
-    func reportTideExpired() -> Bool {
-        guard !sequenceCompleted else {
-            return false
-        }
-        sequenceCompleted = true
+
+    private func sealOnce() -> Bool {
+        guard !sealed else { return false }
+        sealed = true
         return true
     }
-}
 
+    func warmUp() {
+        ensureAdmitted()
+    }
+
+    func chartPulse(_ raw: [String: Any]) {
+        ensureAdmitted()
+        strip.pulse = raw.mapValues { "\($0)" }
+        ward.records.file(strip.log())
+    }
+
+    func chartTraces(_ raw: [String: Any]) {
+        ensureAdmitted()
+        strip.traces = raw.mapValues { "\($0)" }
+        ward.records.file(strip.log())
+    }
+
+    func conduct() async {
+        ensureAdmitted()
+        guard !sealed, !conducting else { return }
+        conducting = true
+        defer { conducting = false }
+
+        let builder = TraceBuilder(strip: strip, ward: ward)
+
+        builder.spliceSpike()
+        if let reading = builder.readout() {
+            finish(builder, reading)
+            return
+        }
+
+        guard builder.signalLive else {
+            finish(builder, .tracing)
+            return
+        }
+
+        await builder.amplify()
+        if let reading = builder.readout() {
+            finish(builder, reading)
+            return
+        }
+
+        await builder.sweep()
+        finish(builder, builder.readout() ?? .flatline)
+    }
+
+    private func finish(_ builder: TraceBuilder, _ reading: Reading) {
+        strip = builder.strip
+
+        if case .tracing = reading {
+            readingSubject.send(.tracing)
+            return
+        }
+
+        if sealOnce() {
+            readingSubject.send(reading)
+        }
+    }
+
+    func pace(then ack: @escaping () -> Void) {
+        ensureAdmitted()
+        consentTask = Task { [weak self] in
+            guard let self = self else { return }
+
+            let granted = await self.ward.pager.page()
+
+            self.strip.consentPaced = granted
+            self.strip.consentFlat = !granted
+            self.strip.consentTapAt = Date()
+            self.ward.records.file(self.strip.log())
+
+            if granted {
+                self.ward.pager.armPager()
+            }
+
+            self.readingSubject.send(.goLive)
+            ack()
+        }
+    }
+
+    func skip() {
+        ensureAdmitted()
+        strip.consentTapAt = Date()
+        ward.records.file(strip.log())
+        readingSubject.send(.goLive)
+    }
+
+    func reportFlatline() -> Bool {
+        return sealOnce()
+    }
+}

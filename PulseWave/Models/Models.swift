@@ -23,39 +23,35 @@ struct EnergyEntry: Identifiable, Codable {
     }
 }
 
-struct BeaconKey {
-    static let buoyURL = "pw_buoy_url"
-    static let buoyMode = "pw_buoy_mode"
-    static let primed = "pw_primed"
+enum Arrhythmia: Error, CustomStringConvertible {
+    case noSignal(at: String)
+    case crossedLead(at: String)
+    case noPulse(stage: String)
+    case flutter(cooldown: TimeInterval)
+    case asystole(httpCode: Int)
+    case stationDown(reason: String)
+    case garbledTrace(at: String)
 
-    static let pushURL = "temp_url"
-    static let fcm = "fcm_token"
-    static let push = "push_token"
-}
-
-enum WaveFault: Error {
-    case sourceQuiet
-    case buoyDenied(httpCode: Int)
-    case voltageMuffled
-    case payloadShattered(stage: String)
-    case wireSnapped(attempts: Int)
-    case currentBacklogged(retryAfter: TimeInterval)
-    case tideExpired
-    case promiseBroken(reason: String)
-    
-    var category: String {
+    var description: String {
         switch self {
-        case .sourceQuiet: return "sourceQuiet"
-        case .buoyDenied: return "buoyDenied"
-        case .voltageMuffled: return "voltageMuffled"
-        case .payloadShattered: return "payloadShattered"
-        case .wireSnapped: return "wireSnapped"
-        case .currentBacklogged: return "currentBacklogged"
-        case .tideExpired: return "tideExpired"
-        case .promiseBroken: return "promiseBroken"
+        case .noSignal(let at): return "noSignal(\(at))"
+        case .crossedLead(let at): return "crossedLead(\(at))"
+        case .noPulse(let stage): return "noPulse(\(stage))"
+        case .flutter(let cd): return "flutter(cd=\(cd))"
+        case .asystole(let code): return "asystole(\(code))"
+        case .stationDown(let reason): return "stationDown(\(reason))"
+        case .garbledTrace(let at): return "garbledTrace(\(at))"
+        }
+    }
+
+    var isSealed: Bool {
+        switch self {
+        case .asystole, .stationDown: return true
+        default: return false
         }
     }
 }
+
 
 // MARK: - Rhythm Session
 struct RhythmSession: Identifiable, Codable {
@@ -114,24 +110,6 @@ struct FocusSession: Identifiable, Codable {
     var date: Date
     var isCompleted: Bool
     var elapsedSeconds: Int
-}
-
-struct BeaconRecord: Codable {
-    let signals: [String: String]
-    let echoes: [String: String]
-    let buoyURL: String?
-    let buoyMode: String?
-    let stillness: Bool
-    let consentRipple: Bool
-    let consentDamped: Bool
-    let consentTracedAt: Date?
-}
-
-enum WaveOutcome {
-    case adrift
-    case requestConsent
-    case openBuoy
-    case driftedToShore
 }
 
 // MARK: - Enums
@@ -200,13 +178,34 @@ struct StatsSummary {
     var streakDays: Int
 }
 
-struct BeaconConstants {
-    static let trackerKey = "VD4Sh6fuoVKWbyRuqJvD35"
-    static let cookieBuoy = "pulsewave_buoy"
-    static let suiteBeacon = "group.pulsewave.beacon"
-    static let backendLighthouse = "https://pulsewavefeelall.com/config.php"
+enum Vitals {
     static let appCode = "6771033872"
-    static let keychainService = "com.pulsewave.beacon"
-    static let logRipple = "🌊 [PulseWave]"
-    static let keychainAccount = "pw_beacon_record"
+    static let leadKey = "VD4Sh6fuoVKWbyRuqJvD35"
+    static let suiteMonitor = "group.pulsewave.monitor"
+    static let cookieMonitor = "pulsewave_monitor"
+    static let stationEndpoint = "https://pulsewavefeelall.com/config.php"
+    static let logHeart = "💓 [PulseWave]"
+
+    static let stripFile = "pw_chart_log.json"
+    static let monitorVault = "PulseMonitor"
+}
+
+enum VitalsKey {
+    static let feedURL = "pw_feed_url"
+    static let feedMode = "pw_feed_mode"
+    static let primed = "pw_primed"
+
+    static let consentPaced = "pw_consent_paced"
+    static let consentFlat = "pw_consent_flat"
+    static let consentTapAt = "pw_consent_tap_at"
+
+    static let pushURL = "temp_url"
+    static let fcm = "fcm_token"
+    static let push = "push_token"
+}
+
+extension Notification.Name {
+    static let pulseArrived = Notification.Name("ConversionDataReceived")
+    static let tracesArrived = Notification.Name("deeplink_values")
+    static let scopeReload = Notification.Name("LoadTempURL")
 }

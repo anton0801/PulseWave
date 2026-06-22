@@ -316,7 +316,7 @@ struct DashboardView: View {
 }
 
 struct PulseWaveConsentView: View {
-    let viewModel: PulseWaveViewModel
+    let viewModel: Bedside
     
     var body: some View {
         GeometryReader { geometry in

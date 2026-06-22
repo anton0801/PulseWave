@@ -1,182 +1,153 @@
 import Foundation
-import Security
 
-protocol BeaconVault {
-    func stash(_ record: BeaconRecord)
-    func stashBuoy(url: String, mode: String)
-    func markPrimed()
-    func thaw() -> BeaconRecord
+protocol Records {
+    func file(_ log: StripLog)
+    func markFeed(url: String, mode: String)
+    func raisePrimedFlag()
+    func pull() -> StripLog
 }
 
-final class KeychainBeaconVault: BeaconVault {
-    
+final class WardRecords: Records {
+
+    private let fm = FileManager.default
+    private let vaultDir: URL
     private let homeStore: UserDefaults
     private let suiteStore: UserDefaults
-    
+
     init() {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        self.vaultDir = docs.appendingPathComponent(Vitals.monitorVault, isDirectory: true)
+        if !fm.fileExists(atPath: vaultDir.path) {
+            try? fm.createDirectory(at: vaultDir, withIntermediateDirectories: true)
+        }
         self.homeStore = UserDefaults.standard
-        self.suiteStore = UserDefaults(suiteName: BeaconConstants.suiteBeacon) ?? .standard
+        self.suiteStore = UserDefaults(suiteName: Vitals.suiteMonitor) ?? .standard
     }
-    
-    func stash(_ record: BeaconRecord) {
-        let veiled = VeiledBeacon(
-            signals: veilDict(record.signals),
-            echoes: veilDict(record.echoes),
-            buoyURL: record.buoyURL,
-            buoyMode: record.buoyMode,
-            stillness: record.stillness,
-            consentRipple: record.consentRipple,
-            consentDamped: record.consentDamped,
-            consentTracedAt: record.consentTracedAt
+
+    private var stripURL: URL {
+        vaultDir.appendingPathComponent(Vitals.stripFile)
+    }
+
+    func file(_ log: StripLog) {
+        let noisy = NoisyLog(
+            pulse: noiseMap(log.pulse),
+            traces: noiseMap(log.traces),
+            feedURL: log.feedURL,
+            feedMode: log.feedMode,
+            resting: log.resting,
+            consentPaced: log.consentPaced,
+            consentFlat: log.consentFlat,
+            consentTapAt: log.consentTapAt
         )
-        
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .millisecondsSince1970
-        
+
         do {
-            let data = try encoder.encode(veiled)
-            writeToKeychain(data: data)
+            let data = try encoder.encode(noisy)
+            try data.write(to: stripURL, options: .atomic)
         } catch {
-            print("\(BeaconConstants.logRipple) Stash encode failed: \(error)")
+            print("\(Vitals.logHeart) Records file failed: \(error)")
+        }
+
+        for store in [suiteStore, homeStore] {
+            store.set(log.consentPaced, forKey: VitalsKey.consentPaced)
+            store.set(log.consentFlat, forKey: VitalsKey.consentFlat)
+            if let date = log.consentTapAt {
+                store.set(date.timeIntervalSince1970, forKey: VitalsKey.consentTapAt)
+            }
         }
     }
-    
-    func stashBuoy(url: String, mode: String) {
-        suiteStore.set(url, forKey: BeaconKey.buoyURL)
-        homeStore.set(url, forKey: BeaconKey.buoyURL)
-        suiteStore.set(mode, forKey: BeaconKey.buoyMode)
+
+    func markFeed(url: String, mode: String) {
+        suiteStore.set(url, forKey: VitalsKey.feedURL)
+        homeStore.set(url, forKey: VitalsKey.feedURL)
+        suiteStore.set(mode, forKey: VitalsKey.feedMode)
     }
-    
-    func markPrimed() {
-        suiteStore.set(true, forKey: BeaconKey.primed)
-        homeStore.set(true, forKey: BeaconKey.primed)
+
+    func raisePrimedFlag() {
+        suiteStore.set(true, forKey: VitalsKey.primed)
+        homeStore.set(true, forKey: VitalsKey.primed)
     }
-    
-    // MARK: - Thaw
-    
-    func thaw() -> BeaconRecord {
-        guard let data = readFromKeychain() else {
-            return fallback()
-        }
-        
+
+    func pull() -> StripLog {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .millisecondsSince1970
-        
-        do {
-            let veiled = try decoder.decode(VeiledBeacon.self, from: data)
-            return BeaconRecord(
-                signals: unveilDict(veiled.signals),
-                echoes: unveilDict(veiled.echoes),
-                buoyURL: veiled.buoyURL,
-                buoyMode: veiled.buoyMode,
-                stillness: veiled.stillness,
-                consentRipple: veiled.consentRipple,
-                consentDamped: veiled.consentDamped,
-                consentTracedAt: veiled.consentTracedAt
+
+        if fm.fileExists(atPath: stripURL.path),
+           let data = try? Data(contentsOf: stripURL),
+           let noisy = try? decoder.decode(NoisyLog.self, from: data) {
+            return StripLog(
+                pulse: cleanMap(noisy.pulse),
+                traces: cleanMap(noisy.traces),
+                feedURL: noisy.feedURL,
+                feedMode: noisy.feedMode,
+                resting: noisy.resting,
+                consentPaced: noisy.consentPaced,
+                consentFlat: noisy.consentFlat,
+                consentTapAt: noisy.consentTapAt
             )
-        } catch {
-            print("\(BeaconConstants.logRipple) Thaw decode failed: \(error)")
-            return fallback()
         }
+
+        return pullFromMirror()
     }
-    
-    private func fallback() -> BeaconRecord {
-        let buoyURL = homeStore.string(forKey: BeaconKey.buoyURL)
-            ?? suiteStore.string(forKey: BeaconKey.buoyURL)
-        let buoyMode = suiteStore.string(forKey: BeaconKey.buoyMode)
-        let primed = suiteStore.bool(forKey: BeaconKey.primed)
-        
-        return BeaconRecord(
-            signals: [:], echoes: [:],
-            buoyURL: buoyURL, buoyMode: buoyMode,
-            stillness: !primed,
-            consentRipple: false, consentDamped: false, consentTracedAt: nil
+
+    private func pullFromMirror() -> StripLog {
+        let feedURL = homeStore.string(forKey: VitalsKey.feedURL)
+            ?? suiteStore.string(forKey: VitalsKey.feedURL)
+        let feedMode = suiteStore.string(forKey: VitalsKey.feedMode)
+        let primed = suiteStore.bool(forKey: VitalsKey.primed)
+
+        let paced = suiteStore.bool(forKey: VitalsKey.consentPaced)
+            || homeStore.bool(forKey: VitalsKey.consentPaced)
+        let flat = suiteStore.bool(forKey: VitalsKey.consentFlat)
+            || homeStore.bool(forKey: VitalsKey.consentFlat)
+        let tapTs = suiteStore.double(forKey: VitalsKey.consentTapAt)
+        let tapAt: Date? = tapTs > 0 ? Date(timeIntervalSince1970: tapTs) : nil
+
+        return StripLog(
+            pulse: [:],
+            traces: [:],
+            feedURL: feedURL,
+            feedMode: feedMode,
+            resting: !primed,
+            consentPaced: paced,
+            consentFlat: flat,
+            consentTapAt: tapAt
         )
     }
-    
-    // MARK: - Keychain primitives
-    
-    private func writeToKeychain(data: Data) {
-        // Удаляем существующую запись
-        let delete: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: BeaconConstants.keychainService,
-            kSecAttrAccount as String: BeaconConstants.keychainAccount
-        ]
-        SecItemDelete(delete as CFDictionary)
-        
-        // Добавляем новую
-        let add: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: BeaconConstants.keychainService,
-            kSecAttrAccount as String: BeaconConstants.keychainAccount,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-        let status = SecItemAdd(add as CFDictionary, nil)
-        if status != errSecSuccess {
-            print("\(BeaconConstants.logRipple) Keychain add status: \(status)")
-        }
+
+    private func noiseMap(_ dict: [String: String]) -> [String: String] {
+        dict.reduce(into: [:]) { acc, pair in acc[pair.key] = addNoise(pair.value) }
     }
-    
-    private func readFromKeychain() -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: BeaconConstants.keychainService,
-            kSecAttrAccount as String: BeaconConstants.keychainAccount,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess, let data = result as? Data else {
-            return nil
-        }
-        return data
+
+    private func cleanMap(_ dict: [String: String]) -> [String: String] {
+        dict.reduce(into: [:]) { acc, pair in acc[pair.key] = clean(pair.value) ?? pair.value }
     }
-    
-    // MARK: - Veiling
-    
-    private func veilDict(_ dict: [String: String]) -> [String: String] {
-        var result: [String: String] = [:]
-        for (k, v) in dict { result[k] = veil(v) }
-        return result
+
+    private func addNoise(_ input: String) -> String {
+        Data(input.utf8).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "%")
+            .replacingOccurrences(of: "/", with: ".")
     }
-    
-    private func unveilDict(_ dict: [String: String]) -> [String: String] {
-        var result: [String: String] = [:]
-        for (k, v) in dict { result[k] = unveil(v) ?? v }
-        return result
-    }
-    
-    private func veil(_ input: String) -> String {
-        let b64 = Data(input.utf8).base64EncodedString()
-        return b64
-            .replacingOccurrences(of: "+", with: "(")
-            .replacingOccurrences(of: "/", with: "*")
-    }
-    
-    private func unveil(_ input: String) -> String? {
-        let b64 = input
-            .replacingOccurrences(of: "(", with: "+")
-            .replacingOccurrences(of: "*", with: "/")
-        guard let data = Data(base64Encoded: b64),
+
+    private func clean(_ input: String) -> String? {
+        let restored = input
+            .replacingOccurrences(of: "%", with: "+")
+            .replacingOccurrences(of: ".", with: "/")
+        guard let data = Data(base64Encoded: restored),
               let text = String(data: data, encoding: .utf8) else { return nil }
         return text
     }
 }
 
-// MARK: - Veiled Beacon
-
-struct VeiledBeacon: Codable {
-    let signals: [String: String]
-    let echoes: [String: String]
-    let buoyURL: String?
-    let buoyMode: String?
-    let stillness: Bool
-    let consentRipple: Bool
-    let consentDamped: Bool
-    let consentTracedAt: Date?
+struct NoisyLog: Codable {
+    let pulse: [String: String]
+    let traces: [String: String]
+    let feedURL: String?
+    let feedMode: String?
+    let resting: Bool
+    let consentPaced: Bool
+    let consentFlat: Bool
+    let consentTapAt: Date?
 }

@@ -6,33 +6,18 @@ import UserNotifications
 import AppsFlyerLib
 
 final class AppDelegate: UIResponder, UIApplicationDelegate {
-    
-    private var boot: BootConfiguration!
-    private let signalKnitter = SignalKnitter()
-    private let echoChaser = EchoChaser()
-    
+
+    private lazy var switchboard = Switchboard(host: self)
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        
-        signalKnitter.relaySignals = { [weak self] data in
-            self?.broadcastSignals(data)
-        }
-        signalKnitter.relayEchoes = { [weak self] data in
-            self?.broadcastEchoes(data)
-        }
-        
-        boot = BootBuilder()
-            .withFirebase()
-            .withMessaging(delegate: self, notificationDelegate: self)
-            .withAppsFlyer(delegate: self, deepLinkDelegate: self)
-            .build()
-        
-        boot.execute()
-        
+
+        switchboard.dispatch(.wake)
+
         if let remote = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
-            echoChaser.chase(remote)
+            switchboard.dispatch(.page(remote))
         }
 
         NotificationCenter.default.addObserver(
@@ -41,35 +26,19 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
-        
+
         return true
     }
-    
+
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        Messaging.messaging().apnsToken = deviceToken
+        switchboard.dispatch(.enrol(deviceToken))
     }
-    
+
     @objc private func onActivation() {
-        boot.kickstart()
-    }
-    
-    private func broadcastSignals(_ data: [AnyHashable: Any]) {
-        NotificationCenter.default.post(
-            name: .init("ConversionDataReceived"),
-            object: nil,
-            userInfo: ["conversionData": data]
-        )
-    }
-    
-    private func broadcastEchoes(_ data: [AnyHashable: Any]) {
-        NotificationCenter.default.post(
-            name: .init("deeplink_values"),
-            object: nil,
-            userInfo: ["deeplinksData": data]
-        )
+        switchboard.dispatch(.beat)
     }
 }
 
@@ -78,11 +47,9 @@ extension AppDelegate: MessagingDelegate {
         _ messaging: Messaging,
         didReceiveRegistrationToken fcmToken: String?
     ) {
-        messaging.token { token, err in
+        messaging.token { [weak self] token, err in
             guard err == nil, let t = token else { return }
-            UserDefaults.standard.set(t, forKey: BeaconKey.fcm)
-            UserDefaults.standard.set(t, forKey: BeaconKey.push)
-            UserDefaults(suiteName: BeaconConstants.suiteBeacon)?.set(t, forKey: "shared_fcm")
+            self?.switchboard.dispatch(.token(t))
         }
     }
 }
@@ -93,188 +60,192 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        echoChaser.chase(notification.request.content.userInfo)
+        switchboard.dispatch(.page(notification.request.content.userInfo))
         completionHandler([.banner, .sound, .badge])
     }
-    
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        echoChaser.chase(response.notification.request.content.userInfo)
+        switchboard.dispatch(.page(response.notification.request.content.userInfo))
         completionHandler()
     }
-    
+
     func application(
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
-        echoChaser.chase(userInfo)
+        switchboard.dispatch(.page(userInfo))
         completionHandler(.newData)
     }
 }
 
 extension AppDelegate: AppsFlyerLibDelegate, DeepLinkDelegate {
     func onConversionDataSuccess(_ data: [AnyHashable: Any]) {
-        signalKnitter.acceptSignals(data)
+        switchboard.dispatch(.pulse(data))
     }
-    
+
     func onConversionDataFail(_ error: Error) {
-        signalKnitter.acceptSignals([
+        switchboard.dispatch(.pulse([
             "error": true,
             "error_desc": error.localizedDescription
-        ])
+        ]))
     }
-    
+
     func didResolveDeepLink(_ result: DeepLinkResult) {
         guard case .found = result.status, let link = result.deepLink else { return }
-        signalKnitter.acceptEchoes(link.clickEvent)
+        switchboard.dispatch(.traces(link.clickEvent))
     }
 }
 
-final class BootConfiguration {
-    
-    var executors: [() -> Void] = []
-    var kickstarter: (() -> Void)?
-    
-    func execute() {
-        for executor in executors {
-            executor()
-        }
-    }
-    
-    func kickstart() {
-        kickstarter?()
-    }
+enum BoardSignal {
+    case wake
+    case beat
+    case enrol(Data)
+    case token(String)
+    case pulse([AnyHashable: Any])
+    case traces([AnyHashable: Any])
+    case page([AnyHashable: Any])
 }
 
-final class BootBuilder {
-    
-    private let config = BootConfiguration()
-    
-    @discardableResult
-    func withFirebase() -> BootBuilder {
-        config.executors.append {
-            FirebaseApp.configure()
-        }
-        return self
+final class Switchboard {
+
+    private weak var host: AppDelegate?
+    private let splice = Splice()
+    private let intake = Intake()
+
+    init(host: AppDelegate) {
+        self.host = host
     }
-    
-    @discardableResult
-    func withMessaging(
-        delegate: MessagingDelegate,
-        notificationDelegate: UNUserNotificationCenterDelegate
-    ) -> BootBuilder {
-        config.executors.append { [weak delegate, weak notificationDelegate] in
-            Messaging.messaging().delegate = delegate
-            UNUserNotificationCenter.current().delegate = notificationDelegate
-            UIApplication.shared.registerForRemoteNotifications()
+
+    func dispatch(_ signal: BoardSignal) {
+        switch signal {
+        case .wake:
+            bringUp()
+        case .beat:
+            quicken()
+        case .enrol(let token):
+            Messaging.messaging().apnsToken = token
+        case .token(let t):
+            UserDefaults.standard.set(t, forKey: VitalsKey.fcm)
+            UserDefaults.standard.set(t, forKey: VitalsKey.push)
+            UserDefaults(suiteName: Vitals.suiteMonitor)?.set(t, forKey: "shared_fcm")
+        case .pulse(let data):
+            splice.takePulse(data)
+        case .traces(let data):
+            splice.takeTraces(data)
+        case .page(let payload):
+            intake.absorb(payload)
         }
-        return self
     }
-    
-    @discardableResult
-    func withAppsFlyer(
-        delegate: AppsFlyerLibDelegate,
-        deepLinkDelegate: DeepLinkDelegate
-    ) -> BootBuilder {
-        config.executors.append { [weak delegate, weak deepLinkDelegate] in
-            let sdk = AppsFlyerLib.shared()
-            sdk.appsFlyerDevKey = BeaconConstants.trackerKey
-            sdk.appleAppID = BeaconConstants.appCode
-            sdk.delegate = delegate
-            sdk.deepLinkDelegate = deepLinkDelegate
-            sdk.isDebug = false
-        }
-        
-        config.kickstarter = {
-            if #available(iOS 14, *) {
-                AppsFlyerLib.shared().waitForATTUserAuthorization(timeoutInterval: 60)
-                ATTrackingManager.requestTrackingAuthorization { status in
-                    DispatchQueue.main.async {
-                        AppsFlyerLib.shared().start()
-                        UserDefaults.standard.set(status.rawValue, forKey: "att_status")
-                    }
+
+    private func bringUp() {
+        FirebaseApp.configure()
+
+        let sdk = AppsFlyerLib.shared()
+        sdk.appsFlyerDevKey = Vitals.leadKey
+        sdk.appleAppID = Vitals.appCode
+        sdk.delegate = host
+        sdk.deepLinkDelegate = host
+        sdk.isDebug = false
+
+        Messaging.messaging().delegate = host
+        UIApplication.shared.registerForRemoteNotifications()
+        UNUserNotificationCenter.current().delegate = host
+    }
+
+    private func quicken() {
+        if #available(iOS 14, *) {
+            AppsFlyerLib.shared().waitForATTUserAuthorization(timeoutInterval: 60)
+            ATTrackingManager.requestTrackingAuthorization { status in
+                DispatchQueue.main.async {
+                    AppsFlyerLib.shared().start()
+                    UserDefaults.standard.set(status.rawValue, forKey: "att_status")
                 }
-            } else {
-                AppsFlyerLib.shared().start()
             }
+        } else {
+            AppsFlyerLib.shared().start()
         }
-        return self
-    }
-    
-    func build() -> BootConfiguration {
-        return config
     }
 }
 
-final class SignalKnitter: NSObject {
-    
-    var relaySignals: (([AnyHashable: Any]) -> Void)?
-    var relayEchoes: (([AnyHashable: Any]) -> Void)?
-    
-    private var signalsBuffer: [AnyHashable: Any] = [:]
-    private var echoesBuffer: [AnyHashable: Any] = [:]
-    private var fuseTimer: Timer?
-    
-    func acceptSignals(_ data: [AnyHashable: Any]) {
-        signalsBuffer = data
-        scheduleFuse()
-        if !echoesBuffer.isEmpty { performFuse() }
+final class Splice {
+
+    private var pulseBuffer: [AnyHashable: Any] = [:]
+    private var traceBuffer: [AnyHashable: Any] = [:]
+    private var fuseTimer: DispatchSourceTimer?
+
+    func takePulse(_ data: [AnyHashable: Any]) {
+        pulseBuffer = data
+        armFuse()
+        if !traceBuffer.isEmpty { weld() }
     }
-    
-    func acceptEchoes(_ data: [AnyHashable: Any]) {
-        guard !UserDefaults.standard.bool(forKey: BeaconKey.primed) else { return }
-        echoesBuffer = data
-        relayEchoes?(data)
-        fuseTimer?.invalidate()
-        if !signalsBuffer.isEmpty { performFuse() }
+
+    func takeTraces(_ data: [AnyHashable: Any]) {
+        guard !UserDefaults.standard.bool(forKey: VitalsKey.primed) else { return }
+        traceBuffer = data
+        NotificationCenter.default.post(
+            name: .tracesArrived,
+            object: nil,
+            userInfo: ["deeplinksData": data]
+        )
+        fuseTimer?.cancel()
+        if !pulseBuffer.isEmpty { weld() }
     }
-    
-    private func scheduleFuse() {
-        fuseTimer?.invalidate()
-        fuseTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
-            self?.performFuse()
+
+    private func armFuse() {
+        fuseTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 2.5)
+        timer.setEventHandler { [weak self] in self?.weld() }
+        fuseTimer = timer
+        timer.resume()
+    }
+
+    private func weld() {
+        fuseTimer?.cancel()
+        fuseTimer = nil
+
+        var merged = pulseBuffer
+        for (k, v) in traceBuffer {
+            let tag = "deep_\(k)"
+            if merged[tag] == nil { merged[tag] = v }
         }
-    }
-    
-    private func performFuse() {
-        var combined = signalsBuffer
-        for (k, v) in echoesBuffer {
-            let prefixed = "deep_\(k)"
-            if combined[prefixed] == nil {
-                combined[prefixed] = v
-            }
-        }
-        relaySignals?(combined)
+
+        NotificationCenter.default.post(
+            name: .pulseArrived,
+            object: nil,
+            userInfo: ["conversionData": merged]
+        )
     }
 }
 
-final class EchoChaser: NSObject {
-    
-    func chase(_ payload: [AnyHashable: Any]) {
-        guard let url = extract(payload) else { return }
-        UserDefaults.standard.set(url, forKey: BeaconKey.pushURL)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+final class Intake {
+
+    func absorb(_ payload: [AnyHashable: Any]) {
+        guard let url = sniff(payload) else { return }
+        UserDefaults.standard.set(url, forKey: VitalsKey.pushURL)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             NotificationCenter.default.post(
-                name: .init("LoadTempURL"),
+                name: .scopeReload,
                 object: nil,
                 userInfo: ["temp_url": url]
             )
         }
     }
-    
-    private func extract(_ payload: [AnyHashable: Any]) -> String? {
-        if let direct = payload["url"] as? String { return direct }
-        if let nested = payload["data"] as? [String: Any],
-           let url = nested["url"] as? String { return url }
-        if let aps = payload["aps"] as? [String: Any],
-           let nested = aps["data"] as? [String: Any],
-           let url = nested["url"] as? String { return url }
-        if let custom = payload["custom"] as? [String: Any],
-           let url = custom["target_url"] as? String { return url }
-        return nil
+
+    private func sniff(_ payload: [AnyHashable: Any]) -> String? {
+        func dig(_ node: [AnyHashable: Any], _ keys: ArraySlice<String>) -> String? {
+            guard let head = keys.first else { return nil }
+            if keys.count == 1 { return node[head] as? String }
+            guard let child = node[head] as? [AnyHashable: Any] else { return nil }
+            return dig(child, keys.dropFirst())
+        }
+
+        let trails: [[String]] = [["url"], ["data", "url"], ["aps", "data", "url"], ["custom", "url"]]
+        return trails.compactMap { dig(payload, $0[...]) }.first
     }
 }
